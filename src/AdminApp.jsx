@@ -146,6 +146,11 @@ function ScoresEditor({ tools, categories, token, onSaved }) {
         body: JSON.stringify({ score: Number(cell.score), rank: Number(cell.rank), notes: cell.notes }),
         headers: { Prefer: "return=minimal" },
       }, token);
+      try {
+        await sbFetch("/rest/v1/rpc/recalculate_ranks", { method: "POST", body: JSON.stringify({}) }, token);
+      } catch (rpcErr) {
+        console.error("Rank recalculation failed:", rpcErr);
+      }
       setFlash(f => ({ ...f, [key]: "ok" }));
       onSaved();
       setTimeout(() => setFlash(f => { const n = { ...f }; delete n[key]; return n; }), 1800);
@@ -256,14 +261,21 @@ function ToolsEditor({ tools, setTools, token, onSaved }) {
   const saveTool = async (tool) => {
     setSaving(tool.id);
     const payload = {
-      name: tool.name, tagline: tool.tagline, maker: tool.maker,
+      name: tool.name, tagline: tool.tagline || null, maker: tool.maker,
       personality: tool.personality, avatar: tool.avatar,
-      pricing_free: tool.pricing_free, pricing_pro: tool.pricing_pro,
+      color: tool.color || null,
       traits: tool.traits, best_for: tool.best_for,
+      primary_strength: tool.primary_strength || null,
+      ideal_for: tool.ideal_for || null,
+      not_great_for: tool.not_great_for || null,
+      pricing_tier: tool.pricing_tier || null,
+      context_window: tool.context_window === "" ? null : Number(tool.context_window),
+      pro_price_usd: tool.pro_price_usd === "" ? null : Number(tool.pro_price_usd),
       arena_elo: tool.arena_elo === "" ? null : Number(tool.arena_elo),
       benchmark_mmlu: tool.benchmark_mmlu === "" ? null : Number(tool.benchmark_mmlu),
       benchmark_humaneval: tool.benchmark_humaneval === "" ? null : Number(tool.benchmark_humaneval),
       benchmark_gsm8k: tool.benchmark_gsm8k === "" ? null : Number(tool.benchmark_gsm8k),
+      last_updated: new Date().toISOString(),
     };
     try {
       await sbFetch(`/rest/v1/tools?id=eq.${tool.id}`, {
@@ -341,6 +353,16 @@ function ToolsEditor({ tools, setTools, token, onSaved }) {
                 <Field label="HumanEval %" toolId={tool.id} field="benchmark_humaneval" type="number" />
                 <Field label="GSM8K %" toolId={tool.id} field="benchmark_gsm8k" type="number" />
                 <Field label="Arena Elo" toolId={tool.id} field="arena_elo" type="number" />
+              </div>
+              <div style={{ fontSize: 11, color: S.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Positioning & Pricing</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                <Field label="Primary Strength" toolId={tool.id} field="primary_strength" type="textarea" fullWidth />
+                <Field label="Ideal For" toolId={tool.id} field="ideal_for" type="textarea" />
+                <Field label="Not Great For" toolId={tool.id} field="not_great_for" type="textarea" />
+                <Field label="Context window (tokens)" toolId={tool.id} field="context_window" type="number" />
+                <Field label="Pricing tier" toolId={tool.id} field="pricing_tier" />
+                <Field label="Pro price USD" toolId={tool.id} field="pro_price_usd" type="number" />
+                <Field label="Brand color (hex)" toolId={tool.id} field="color" />
               </div>
               <div style={{ fontSize: 11, color: S.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Traits (comma-separated)</div>
               <input style={{ ...input, marginBottom: 12 }}
