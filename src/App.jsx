@@ -127,9 +127,10 @@ function radarChartData(selectedToolList, categories) {
 
 function LoadingScreen() {
   return (
-    <div style={{ minHeight: "100vh", background: THEME.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
-      <div style={{ fontSize: 32 }}>⏳</div>
-      <div style={{ color: THEME.dimmed, fontSize: 14 }}>Loading tool data…</div>
+    <div style={{ height: "100vh", width: "100%", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", background: THEME.bg, gap: 16 }}>
+      <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      <div style={{ width: 40, height: 40, border: "3px solid transparent", borderTop: `3px solid ${THEME.purple}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <p style={{ color: THEME.dimmed, fontSize: 14, margin: 0 }}>Loading tool data…</p>
     </div>
   );
 }
@@ -772,9 +773,10 @@ export default function AIGuide() {
       {view === "matrix"     && <MatrixView isMobile={isMobile} tools={tools} categories={categories} />}
       {view === "radar"      && <RadarView selectedTools={selectedTools} onToggleTool={toggleTool} isMobile={isMobile} tools={tools} categories={categories} />}
       {view === "benchmarks" && <BenchmarksView selectedTools={selectedTools} onToggleTool={toggleTool} isMobile={isMobile} tools={tools} />}
-        <div style={{ textAlign: "center", padding: "32px 16px 24px", color: THEME.dimmed, fontSize: 11 }}>
-          Editorial scores · March 2026 · Benchmark data from public model cards
-        </div>
+        <footer style={{ marginTop: 40, padding: "32px 24px", borderTop: `1px solid ${THEME.border}`, textAlign: "center", display: "flex", flexDirection: "column", gap: 8 }}>
+          <p style={{ color: THEME.dimmed, fontSize: 14, margin: 0 }}>Editorial scores · March 2026 · Benchmark data from public model cards</p>
+          <p style={{ color: THEME.muted, fontSize: 11, margin: 0 }}>Which AI, When — not affiliated with any AI company</p>
+        </footer>
         </div>
       </main>
     </div>
