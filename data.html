@@ -1,0 +1,432 @@
+import { useState } from "react";
+
+const DOMAINS = {
+  feature: { name: "FEATURE / FUNCTION", color: "#3B82F6", border: "#1d4ed8", bg: "rgba(59,130,246,0.08)", dim: "What it does", icon: "◈" },
+  system:  { name: "SYSTEM",             color: "#F59E0B", border: "#b45309", bg: "rgba(245,158,11,0.08)", dim: "How it's built", icon: "◎" },
+  product: { name: "PRODUCT",            color: "#10B981", border: "#047857", bg: "rgba(16,185,129,0.08)", dim: "What it is in the world", icon: "◇" },
+  other:   { name: "OTHER",              color: "#EC4899", border: "#be185d", bg: "rgba(236,72,153,0.08)", dim: "Everything beyond the build", icon: "◉" },
+};
+
+const CATEGORIES = [
+  {
+    id: "features", domain: "feature", primary: true, icon: "⚙️", name: "Features & Functions", cap: 10, rule: "doubled",
+    items: [
+      { title: "Quiz recommender engine", value: 95, tag: "strength" },
+      { title: "Ranked view with expandable cards", value: 88, tag: "strength" },
+      { title: "Benchmarks view — split charts", value: 85, tag: "strength" },
+      { title: "Matrix view — at-a-glance comparison", value: 82, tag: "strength" },
+      { title: "Radar chart — overlaid comparison", value: 78, tag: "strength" },
+      { title: "Hover tooltips on matrix cells", value: 74, tag: "neutral" },
+      { title: "Pricing info on tool cards", value: 72, tag: "neutral" },
+      { title: "'Best for this' badge on ranked cards", value: 68, tag: "neutral" },
+      { title: "View persistence across category changes", value: 55, tag: "neutral" },
+      { title: "Mobile responsiveness", value: 30, tag: "gap", note: "Matrix overflows. No breakpoints. Charts don't reflow. Critical before public deploy." },
+    ]
+  },
+  {
+    id: "journey", domain: "feature", primary: false, icon: "🧭", name: "User Journey & Onboarding", cap: 5, rule: "standard",
+    items: [
+      { title: "Quiz-first default view", value: 88, tag: "strength" },
+      { title: "Quiz result links to ranked view", value: 80, tag: "strength" },
+      { title: "No onboarding copy or methodology note", value: 28, tag: "gap", note: "Users don't know what the scores mean or how rankings were determined." },
+      { title: "No empty states handled", value: 22, tag: "gap", note: "Radar/Benchmarks show plain text when nothing selected. No guidance." },
+      { title: "No keyboard navigation or focus states", value: 20, tag: "gap", note: "Quiz can't be navigated by keyboard. Accessibility gap." },
+    ]
+  },
+  {
+    id: "code", domain: "system", primary: true, icon: "🔧", name: "Code Resilience & Efficiency", cap: 8, rule: "doubled",
+    items: [
+      { title: "Race condition in quiz fixed", value: 96, tag: "strength", note: "Answers passed directly to scoring fn rather than read from async state." },
+      { title: "ChartTooltip alias resolves name collision", value: 94, tag: "strength", note: "import { Tooltip as ChartTooltip } — all chart tooltips now register." },
+      { title: "Views decomposed into sub-components", value: 88, tag: "strength" },
+      { title: "HoverTooltip refactored as proper component", value: 85, tag: "strength" },
+      { title: "Data defined at module level", value: 78, tag: "strength" },
+      { title: "useCallback on handlers", value: 70, tag: "neutral" },
+      { title: "No PropTypes or TypeScript", value: 35, tag: "gap", note: "No type safety. Silent failures possible on data shape changes." },
+      { title: "No error boundaries", value: 25, tag: "gap", note: "Chart failure or missing data throws entire component. No fallback UI." },
+    ]
+  },
+  {
+    id: "accuracy", domain: "system", primary: false, icon: "🎯", name: "Content Accuracy & Trust", cap: 8, rule: "doubled",
+    items: [
+      { title: "Arena Elo separated from % benchmarks", value: 90, tag: "strength", note: "Two charts, correct axis ranges. Critical fix from v2." },
+      { title: "Grok pricing corrected", value: 85, tag: "strength" },
+      { title: "Benchmark data corrected from v1", value: 82, tag: "strength" },
+      { title: "Quiz recommendations are evidence-based", value: 78, tag: "strength" },
+      { title: "Null benchmarks shown as gaps not zeros", value: 72, tag: "neutral" },
+      { title: "Category scores lack model versioning", value: 60, tag: "neutral" },
+      { title: "Editorial scores have no sourcing", value: 32, tag: "gap", note: "0–100 scores are unattributed opinion. No methodology or date-stamping." },
+      { title: "Benchmark data has no source links", value: 28, tag: "gap", note: "Footer says 'from public model cards' — no URLs, no version specificity." },
+    ]
+  },
+  {
+    id: "maintenance", domain: "system", primary: false, icon: "🔄", name: "Long-term Maintainability", cap: 5, rule: "standard",
+    items: [
+      { title: "Data/UI fully separated", value: 88, tag: "strength" },
+      { title: "Component architecture supports extension", value: 82, tag: "strength" },
+      { title: "No external data source or CMS", value: 30, tag: "gap", note: "Every update requires a code edit + redeploy. Hardcoded pricing, notes, scores." },
+      { title: "AI landscape moves faster than update cycles", value: 22, tag: "gap", note: "GPT-5, Claude 4 could invalidate 40% of scores simultaneously." },
+      { title: "No tests", value: 18, tag: "gap", note: "Zero unit/integration tests. Regression risk on every edit." },
+    ]
+  },
+  {
+    id: "maturity", domain: "product", primary: true, icon: "🌱", name: "Idea Maturity & Execution", cap: 8, rule: "doubled",
+    items: [
+      { title: "Core concept is validated and useful", value: 92, tag: "strength", note: "Fills the gap between shallow listicles and technical leaderboards." },
+      { title: "Visual design is polished and distinctive", value: 88, tag: "strength" },
+      { title: "Multi-view architecture shows product thinking", value: 85, tag: "strength" },
+      { title: "Quiz is right entry point but underpowered", value: 70, tag: "neutral", note: "Results don't explain WHY a tool was recommended. Score alone isn't convincing." },
+      { title: "Content depth is uneven across tools", value: 62, tag: "neutral" },
+      { title: "'Compare' view removed in fix pass", value: 45, tag: "gap", note: "Side-by-side bar chart from Grok v2 dropped. Had real value. Should return." },
+      { title: "No user persona definition", value: 40, tag: "gap" },
+      { title: "No sharing or export mechanism", value: 35, tag: "gap", note: "Quiz results can't be shared. Major friction for 'show a colleague' use case." },
+    ]
+  },
+  {
+    id: "deployment", domain: "product", primary: false, icon: "🚀", name: "Deployment Readiness", cap: 8, rule: "doubled",
+    items: [
+      { title: "Works as Claude artifact today", value: 95, tag: "strength" },
+      { title: "No environment variables or secrets", value: 90, tag: "strength" },
+      { title: "Deployable to Vercel/Netlify with minimal work", value: 85, tag: "strength" },
+      { title: "No domain or hosting considered", value: 40, tag: "neutral" },
+      { title: "No analytics or usage tracking", value: 35, tag: "gap" },
+      { title: "No SEO or meta tags", value: 28, tag: "gap", note: "React SPA with no SSR = near-zero organic discoverability." },
+      { title: "No ARIA labels or focus management", value: 22, tag: "gap" },
+      { title: "Mobile must be fixed before public deploy", value: 20, tag: "gap" },
+    ]
+  },
+  {
+    id: "competitive", domain: "other", primary: true, icon: "🏁", name: "Competitive Positioning", cap: 5, rule: "standard",
+    items: [
+      { title: "Fills gap between listicles and leaderboards", value: 88, tag: "strength" },
+      { title: "Quiz-first approach is differentiating", value: 85, tag: "strength", note: "No major AI comparison tool leads with a recommender quiz." },
+      { title: "Closest competitors: there.ai / futuretools.io", value: 70, tag: "neutral" },
+      { title: "Vulnerable to official comparison pages", value: 55, tag: "neutral" },
+      { title: "No brand, name, or identity yet", value: 20, tag: "gap" },
+    ]
+  },
+  {
+    id: "monetisation", domain: "other", primary: false, icon: "💰", name: "Monetisation Potential", cap: 6, rule: "standard", subDomain: "Business",
+    items: [
+      { title: "Affiliate/referral revenue model is viable", value: 78, tag: "strength" },
+      { title: "Low ceiling as standalone free tool", value: 72, tag: "neutral" },
+      { title: "B2B licensing angle", value: 70, tag: "neutral", note: "Agencies advising clients on AI would pay for white-labelled version." },
+      { title: "Pro/personalised tier potential", value: 65, tag: "neutral" },
+      { title: "Sponsored placement risk to editorial trust", value: 60, tag: "neutral" },
+      { title: "Newsletter / update product angle", value: 55, tag: "neutral" },
+    ]
+  },
+  {
+    id: "risk", domain: "other", primary: false, icon: "⚠️", name: "Strategic Risk", cap: 5, rule: "standard", subDomain: "Business",
+    items: [
+      { title: "Content staleness is the primary risk", value: 88, tag: "strength", note: "AI landscape moves 3–6 month cycles. Hardcoded scores can become misleading." },
+      { title: "Benchmark comparability is fragile", value: 75, tag: "neutral", note: "MMLU increasingly gamed. New benchmarks (GPQA, SWE-bench) replacing them." },
+      { title: "Scope creep risk is high", value: 70, tag: "neutral" },
+      { title: "Single-author knowledge risk", value: 62, tag: "neutral" },
+      { title: "Dependency on chart.js / react-chartjs-2", value: 45, tag: "neutral" },
+    ]
+  },
+];
+
+const TAG_STYLES = {
+  strength: { bg: "rgba(16,185,129,0.15)", border: "rgba(16,185,129,0.4)", color: "#6ee7b7", label: "Strength" },
+  neutral:  { bg: "rgba(148,163,184,0.1)",  border: "rgba(148,163,184,0.25)", color: "#94a3b8", label: "Neutral"  },
+  gap:      { bg: "rgba(239,68,68,0.12)",   border: "rgba(239,68,68,0.35)",  color: "#fca5a5", label: "Gap"      },
+};
+
+function scoreColor(v) {
+  if (v >= 80) return "#10B981";
+  if (v >= 60) return "#F59E0B";
+  if (v >= 40) return "#f97316";
+  return "#EF4444";
+}
+
+function ScoreBar({ value, color }) {
+  return (
+    <div style={{ flex: 1, height: 5, background: "rgba(255,255,255,0.07)", borderRadius: 3, overflow: "hidden" }}>
+      <div style={{ width: `${value}%`, height: "100%", background: color, borderRadius: 3, transition: "width 0.5s ease" }} />
+    </div>
+  );
+}
+
+function CategoryCard({ cat, isOpen, onToggle }) {
+  const domain = DOMAINS[cat.domain];
+  const effectiveCap = cat.rule === "doubled" ? cat.cap * 2 : cat.cap;
+  const items = cat.items.slice(0, effectiveCap);
+  const avgScore = Math.round(items.reduce((s, i) => s + i.value, 0) / items.length);
+
+  const strengthCount = items.filter(i => i.tag === "strength").length;
+  const gapCount = items.filter(i => i.tag === "gap").length;
+
+  return (
+    <div style={{
+      background: isOpen ? domain.bg : "rgba(255,255,255,0.025)",
+      border: `1px solid ${isOpen ? domain.border + "66" : "#1e2a3a"}`,
+      borderRadius: 14,
+      overflow: "hidden",
+      transition: "all 0.2s",
+      marginBottom: 10,
+    }}>
+      {/* Header */}
+      <div
+        onClick={onToggle}
+        style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "14px 18px", cursor: "pointer",
+          borderLeft: `3px solid ${domain.color}`,
+        }}
+      >
+        <span style={{ fontSize: 20 }}>{cat.icon}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: "#f1f5f9" }}>{cat.name}</span>
+            {cat.primary && (
+              <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: `${domain.color}33`, color: domain.color, fontWeight: 800, letterSpacing: "0.1em" }}>★ PRIMARY</span>
+            )}
+            {cat.rule === "doubled" && (
+              <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "rgba(168,85,247,0.2)", color: "#c084fc", fontWeight: 700 }}>2× CAP</span>
+            )}
+            {cat.subDomain && (
+              <span style={{ fontSize: 10, color: "#475569" }}>↳ {cat.subDomain}</span>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 4, alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "#475569" }}>Cap: {cat.cap}{cat.rule === "doubled" ? ` → ${effectiveCap}` : ""}</span>
+            <span style={{ fontSize: 11, color: "#10B981" }}>✓ {strengthCount}</span>
+            <span style={{ fontSize: 11, color: "#EF4444" }}>⚠ {gapCount}</span>
+          </div>
+        </div>
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <div style={{ fontSize: 22, fontWeight: 900, color: scoreColor(avgScore) }}>{avgScore}</div>
+          <div style={{ fontSize: 9, color: "#475569", marginTop: 1 }}>AVG</div>
+        </div>
+        <div style={{ color: "#374151", fontSize: 12 }}>{isOpen ? "▲" : "▼"}</div>
+      </div>
+
+      {/* Items */}
+      {isOpen && (
+        <div style={{ padding: "0 18px 16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          {items.map((item, idx) => {
+            const tag = TAG_STYLES[item.tag];
+            const col = scoreColor(item.value);
+            return (
+              <div key={idx} style={{
+                padding: "11px 0",
+                borderBottom: idx < items.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: col, minWidth: 32, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.value}</div>
+                  <ScoreBar value={item.value} color={col} />
+                  <span style={{
+                    fontSize: 9, padding: "2px 7px", borderRadius: 4, fontWeight: 700, flexShrink: 0,
+                    background: tag.bg, border: `1px solid ${tag.border}`, color: tag.color,
+                  }}>{tag.label.toUpperCase()}</span>
+                </div>
+                <div style={{ marginTop: 5, paddingLeft: 42 }}>
+                  <div style={{ fontSize: 13, color: "#e2e8f0", fontWeight: 500 }}>{item.title}</div>
+                  {item.note && <div style={{ fontSize: 11, color: "#64748b", marginTop: 3, lineHeight: 1.5 }}>{item.note}</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DomainSection({ domainKey, categories, openCats, onToggle }) {
+  const domain = DOMAINS[domainKey];
+  const allItems = categories.flatMap(c => c.items);
+  const domainAvg = Math.round(allItems.reduce((s, i) => s + i.value, 0) / allItems.length);
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <div style={{ marginBottom: 32 }}>
+      {/* Domain header */}
+      <div
+        onClick={() => setCollapsed(!collapsed)}
+        style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "12px 16px", borderRadius: 10, marginBottom: 14,
+          background: domain.bg, border: `1px solid ${domain.border}44`,
+          cursor: "pointer",
+        }}
+      >
+        <span style={{ fontSize: 22, color: domain.color, fontWeight: 800 }}>{domain.icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 800, fontSize: 15, color: domain.color, letterSpacing: "0.05em" }}>{domain.name}</div>
+          <div style={{ fontSize: 12, color: "#64748b", marginTop: 1 }}>{domain.dim}</div>
+        </div>
+        <div style={{ fontSize: 24, fontWeight: 900, color: scoreColor(domainAvg) }}>{domainAvg}</div>
+        <div style={{ color: "#374151", fontSize: 12 }}>{collapsed ? "▼" : "▲"}</div>
+      </div>
+
+      {!collapsed && categories.map(cat => (
+        <CategoryCard
+          key={cat.id}
+          cat={cat}
+          isOpen={openCats.includes(cat.id)}
+          onToggle={() => onToggle(cat.id)}
+        />
+      ))}
+    </div>
+  );
+}
+
+export default function AnalysisReport() {
+  const [openCats, setOpenCats] = useState(["features"]);
+  const [filterTag, setFilterTag] = useState("all");
+  const [activeView, setActiveView] = useState("full"); // full | summary
+
+  const toggleCat = (id) => setOpenCats(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const expandAll = () => setOpenCats(CATEGORIES.map(c => c.id));
+  const collapseAll = () => setOpenCats([]);
+
+  // Summary stats
+  const allItems = CATEGORIES.flatMap(c => c.items);
+  const totalItems = allItems.length;
+  const strengths = allItems.filter(i => i.tag === "strength").length;
+  const gaps = allItems.filter(i => i.tag === "gap").length;
+  const overallAvg = Math.round(allItems.reduce((s, i) => s + i.value, 0) / allItems.length);
+  const top5 = [...allItems].sort((a,b) => b.value - a.value).slice(0,5);
+  const bottom5 = [...allItems].sort((a,b) => a.value - b.value).slice(0,5);
+
+  const domainKeys = ["feature", "system", "product", "other"];
+
+  // Filter categories by tag if active
+  const filteredCategories = filterTag === "all"
+    ? CATEGORIES
+    : CATEGORIES.map(c => ({ ...c, items: c.items.filter(i => i.tag === filterTag) })).filter(c => c.items.length > 0);
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#080e1a",
+      color: "#e2e8f0",
+      fontFamily: "'IBM Plex Mono', 'Courier New', monospace",
+      paddingBottom: 80,
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #0d0d1a; } ::-webkit-scrollbar-thumb { background: #2d2d4e; border-radius: 3px; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ background: "linear-gradient(180deg, #0d1425 0%, #080e1a 100%)", borderBottom: "1px solid #1e2a3a", padding: "36px 24px 28px", position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(rgba(59,130,246,0.06) 1px, transparent 1px)", backgroundSize: "28px 28px", pointerEvents: "none" }} />
+        <div style={{ maxWidth: 860, margin: "0 auto", position: "relative" }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.25em", color: "#3B82F6", marginBottom: 8, fontWeight: 700 }}>ANALYSIS REPORT · MARCH 2026</div>
+          <h1 style={{ fontSize: "clamp(22px, 4vw, 36px)", fontWeight: 700, margin: "0 0 6px", color: "#f1f5f9", letterSpacing: "-0.02em" }}>
+            Which AI, When
+          </h1>
+          <div style={{ fontSize: 13, color: "#64748b", marginBottom: 24 }}>10 categories · 4 domains · {totalItems} items · Claude ownership version</div>
+
+          {/* Stats row */}
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {[
+              { label: "Overall Avg", value: overallAvg, color: scoreColor(overallAvg) },
+              { label: "Strengths", value: strengths, color: "#10B981" },
+              { label: "Gaps", value: gaps, color: "#EF4444" },
+              { label: "Neutral", value: totalItems - strengths - gaps, color: "#94a3b8" },
+            ].map(s => (
+              <div key={s.label} style={{ padding: "10px 18px", background: "rgba(255,255,255,0.04)", border: "1px solid #1e2a3a", borderRadius: 10, minWidth: 90 }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
+                <div style={{ fontSize: 10, color: "#475569", marginTop: 2, letterSpacing: "0.05em" }}>{s.label.toUpperCase()}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 20px 0" }}>
+
+        {/* Controls */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 24, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[
+              { id: "all", label: "All" },
+              { id: "strength", label: "✓ Strengths" },
+              { id: "neutral", label: "· Neutral" },
+              { id: "gap", label: "⚠ Gaps" },
+            ].map(f => (
+              <button key={f.id} onClick={() => setFilterTag(f.id)} style={{
+                padding: "6px 14px", borderRadius: 20, border: "1px solid",
+                borderColor: filterTag === f.id ? "#3B82F6" : "#1e2a3a",
+                background: filterTag === f.id ? "rgba(59,130,246,0.15)" : "transparent",
+                color: filterTag === f.id ? "#93c5fd" : "#475569",
+                cursor: "pointer", fontSize: 12, fontWeight: 600, transition: "all 0.15s",
+              }}>{f.label}</button>
+            ))}
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+            <button onClick={expandAll} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #1e2a3a", background: "transparent", color: "#475569", cursor: "pointer", fontSize: 11 }}>Expand all</button>
+            <button onClick={collapseAll} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #1e2a3a", background: "transparent", color: "#475569", cursor: "pointer", fontSize: 11 }}>Collapse all</button>
+          </div>
+        </div>
+
+        {/* Domain sections */}
+        {domainKeys.map(dk => {
+          const cats = filteredCategories.filter(c => c.domain === dk);
+          if (cats.length === 0) return null;
+          return (
+            <DomainSection
+              key={dk}
+              domainKey={dk}
+              categories={cats}
+              openCats={openCats}
+              onToggle={toggleCat}
+            />
+          );
+        })}
+
+        {/* Summary panel */}
+        <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 14, padding: 18 }}>
+            <div style={{ fontWeight: 700, fontSize: 12, color: "#10B981", letterSpacing: "0.1em", marginBottom: 14 }}>TOP 5 HIGHEST VALUE</div>
+            {top5.map((item, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#10B981", minWidth: 28 }}>{item.value}</span>
+                <span style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.4 }}>{item.title}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 14, padding: 18 }}>
+            <div style={{ fontWeight: 700, fontSize: 12, color: "#EF4444", letterSpacing: "0.1em", marginBottom: 14 }}>TOP 5 GAPS TO ADDRESS</div>
+            {bottom5.map((item, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#EF4444", minWidth: 28 }}>{item.value}</span>
+                <span style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.4 }}>{item.title}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Domain avg bar */}
+        <div style={{ marginTop: 16, background: "rgba(255,255,255,0.025)", border: "1px solid #1e2a3a", borderRadius: 14, padding: 18 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, color: "#64748b", letterSpacing: "0.1em", marginBottom: 16 }}>DOMAIN AVERAGES</div>
+          {domainKeys.map(dk => {
+            const domain = DOMAINS[dk];
+            const dItems = CATEGORIES.filter(c => c.domain === dk).flatMap(c => c.items);
+            const avg = Math.round(dItems.reduce((s,i) => s + i.value, 0) / dItems.length);
+            return (
+              <div key={dk} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                <span style={{ fontSize: 16, minWidth: 24 }}>{domain.icon}</span>
+                <span style={{ fontSize: 12, color: domain.color, fontWeight: 600, minWidth: 160 }}>{domain.name}</span>
+                <div style={{ flex: 1, height: 8, background: "rgba(255,255,255,0.07)", borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ width: `${avg}%`, height: "100%", background: domain.color, borderRadius: 4, opacity: 0.85 }} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 800, color: scoreColor(avg), minWidth: 30, textAlign: "right" }}>{avg}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 28, color: "#1e2a3a", fontSize: 11, letterSpacing: "0.1em" }}>
+          WHICH AI, WHEN · CLAUDE OWNERSHIP · MARCH 2026
+        </div>
+      </div>
+    </div>
+  );
+}
