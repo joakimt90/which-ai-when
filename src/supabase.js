@@ -5,8 +5,8 @@
 // App.jsx should import from here, not call fetch() directly.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "https://czxhavedloklkyqhjvpz.supabase.co";
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY ?? "sb_publishable_AxknLEzD-VAetyqpzIU0TQ_zVL-QKmm";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 
 const BASE_HEADERS = {
   apikey: SUPABASE_KEY,
