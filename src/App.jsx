@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Component } from "react";
 import { Radar, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS, RadialLinearScale, PointElement, LineElement,
@@ -603,3 +603,19 @@ export default function AIGuide() {
     </div>
   );
 }
+
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  render() {
+    if (this.state.hasError) return (
+      <div style={{ padding: 48, textAlign: "center", color: "#fff", background: "#1a1a2e", minHeight: "100vh" }}>
+        <h2 style={{ color: "#e55" }}>Something went wrong</h2>
+        <pre style={{ color: "#aaa", fontSize: 12 }}>{this.state.error?.message}</pre>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
+export { ErrorBoundary };
