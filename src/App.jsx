@@ -256,6 +256,7 @@ function RankedView({ activeCategory, isMobile, tools }) {
             border: `1px solid ${isExpanded ? tool.color + "55" : THEME.border}`, borderRadius: 16,
             padding: isMobile ? "14px 12px" : "18px 20px", marginBottom: 10, cursor: "pointer",
             transition: "all 0.25s", position: "relative", overflow: "hidden",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
           }}>
             <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: tool.color, borderRadius: "16px 0 0 16px" }} />
             <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 14, paddingLeft: isMobile ? 6 : 8 }}>
@@ -275,7 +276,20 @@ function RankedView({ activeCategory, isMobile, tools }) {
               </div>
               <div style={{ color: THEME.dimmed, fontSize: 12 }}>{isExpanded ? "▲" : "▼"}</div>
             </div>
-            <div style={{ paddingLeft: isMobile ? 6 : 8, marginTop: 10 }}><ScoreBar score={catData.score} color={tool.color} /></div>
+            <div style={{ paddingLeft: isMobile ? 6 : 8, marginTop: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 11, color: THEME.dimmed }}>
+                <span style={{ fontWeight: 600, color: THEME.accent, textTransform: "uppercase", letterSpacing: "0.05em" }}>Score</span>
+                <span style={{ fontWeight: 800, color: THEME.text }}>{catData.score}<span style={{ fontWeight: 400, color: THEME.dimmed }}> / 100</span></span>
+              </div>
+              <div style={{ height: 10, background: THEME.subtle, borderRadius: THEME.radius.pill, overflow: "hidden" }}>
+                <div style={{ width: `${catData.score}%`, height: "100%", background: tool.color, borderRadius: THEME.radius.pill, transition: "width 0.8s cubic-bezier(0.4,0,0.2,1)" }} />
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 10 }}>
+                {getCapabilityBadges(tool).map(b => (
+                  <span key={b.key} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: THEME.radius.pill, fontSize: 10, color: THEME.text }}>{b.icon} {b.label}</span>
+                ))}
+              </div>
+            </div>
             {isExpanded && (
               <div style={{ paddingLeft: isMobile ? 6 : 8, marginTop: 14, paddingTop: 14, borderTop: "1px solid #2d2d4e" }}>
                 <p style={{ color: THEME.subtle, fontSize: isMobile ? 13 : 14, lineHeight: 1.7, margin: "0 0 12px" }}>{catData.notes}</p>
@@ -333,6 +347,12 @@ function MatrixTooltip({ catId, children }) {
 }
 
 function MatrixView({ isMobile, tools, categories }) {
+  const [activeCell, setActiveCell] = useState(null);
+  const handleCellClick = (toolId, catId, e) => {
+    e.stopPropagation();
+    const key = `${toolId}-${catId}`;
+    setActiveCell(prev => prev === key ? null : key);
+  };
   // Mobile: stacked expandable cards (unchanged)
   if (isMobile) {
     const [expandedTool, setExpandedTool] = useState(null);
@@ -438,21 +458,30 @@ function MatrixView({ isMobile, tools, categories }) {
               if (!d) return <div key={c.id} style={{ borderRadius: 10, background: "rgba(255,255,255,0.02)", border: "1px solid #1a1a2e" }} />;
               const isTop = d.rank === 1;
               const col   = scoreColor(d.score);
+              const cellKey = `${tool.id}-${c.id}`;
+              const isOpen  = activeCell === cellKey;
               return (
-                <div key={c.id} style={{
-                  background: isTop ? `${tool.color}22` : "rgba(255,255,255,0.03)",
-                  border: isTop ? `1px solid ${tool.color}55` : "1px solid #2d2d4e",
-                  borderRadius: 10,
-                  display: "flex", flexDirection: "column",
-                  alignItems: "center", justifyContent: "center",
-                  padding: "10px 6px", gap: 3,
-                }}>
+                <div key={c.id}
+                  onClick={(e) => handleCellClick(tool.id, c.id, e)}
+                  style={{
+                    background: isTop ? `${tool.color}22` : "rgba(255,255,255,0.03)",
+                    border: isOpen ? `1px solid ${THEME.purple}` : isTop ? `1px solid ${tool.color}55` : "1px solid #2d2d4e",
+                    borderRadius: 10, cursor: "pointer", position: "relative",
+                    display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center",
+                    padding: "10px 6px", gap: 3,
+                  }}>
                   <div style={{ fontSize: 16, fontWeight: 800, color: isTop ? tool.color : col, lineHeight: 1 }}>{d.score}</div>
                   <div style={{ fontSize: 10, color: THEME.dimmed }}>{MEDALS[d.rank - 1]}</div>
-                  {/* mini score bar */}
                   <div style={{ width: "80%", height: 3, background: THEME.surface, borderRadius: 2, overflow: "hidden", marginTop: 2 }}>
                     <div style={{ width: `${d.score}%`, height: "100%", background: isTop ? tool.color : col, borderRadius: 2 }} />
                   </div>
+                  {isOpen && (
+                    <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 10, padding: "10px 12px", width: 190, zIndex: 100, boxShadow: "0 4px 16px rgba(0,0,0,0.6)", fontSize: 11, textAlign: "left", pointerEvents: "none" }}>
+                      <div style={{ fontWeight: 700, color: THEME.accent, marginBottom: 4 }}>{tool.name} · {c.shortLabel}</div>
+                      <div style={{ color: THEME.text, lineHeight: 1.5 }}>{d.notes || "No notes available."}</div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -495,13 +524,30 @@ function CompareView({ isMobile, tools, categories }) {
   return (
     <div style={{ padding: isMobile ? "16px 12px 0" : "20px 24px 0", maxWidth: 900, margin: "0 auto" }}>
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 11, color: THEME.dimmed, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Select tools to compare</div>
+        <div style={{ fontSize: 11, color: THEME.dimmed, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Select tools to compare {selected.length >= 4 && <span style={{ color: THEME.warn }}>· max 4</span>}</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {tools.map(t => (
-            <button key={t.id} onClick={() => toggle(t.id)} style={{ display: "flex", alignItems: "center", gap: 6, padding: isMobile ? "7px 12px" : "8px 16px", borderRadius: 20, border: `1px solid ${selectedIds.includes(t.id) ? t.color : THEME.border}`, background: selectedIds.includes(t.id) ? `${t.color}22` : "transparent", color: selectedIds.includes(t.id) ? t.accent : THEME.muted, cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: 600, transition: "all 0.15s" }}><span>{t.avatar}</span>{t.name}</button>
-          ))}
+          {tools.map(t => {
+            const isSel = selectedIds.includes(t.id);
+            const isDisabled = !isSel && selected.length >= 4;
+            return (
+              <button key={t.id} onClick={() => !isDisabled && toggle(t.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: isMobile ? "8px 12px" : "10px 14px", borderRadius: 12, border: `2px solid ${isSel ? t.color : "transparent"}`, background: isSel ? `${t.color}18` : THEME.surface, color: isSel ? t.accent : THEME.muted, cursor: isDisabled ? "not-allowed" : "pointer", fontSize: isMobile ? 12 : 13, fontWeight: 600, transition: "all 0.15s", opacity: isDisabled ? 0.4 : 1, boxShadow: isSel ? `0 0 10px ${t.color}33` : "none" }}>
+                <span style={{ fontSize: 18 }}>{t.avatar}</span>
+                <div style={{ textAlign: "left" }}>
+                  <div style={{ fontWeight: 700, color: isSel ? t.accent : THEME.text, fontSize: isMobile ? 12 : 13 }}>{t.name}</div>
+                  {!isMobile && <div style={{ fontSize: 10, color: THEME.dimmed, marginTop: 1 }}>{t.tagline}</div>}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
+      {selected.length === 0 && (
+        <div style={{ padding: "60px 24px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <div style={{ fontSize: 48 }}>🔍</div>
+          <h3 style={{ color: THEME.text, margin: 0 }}>Select tools to compare</h3>
+          <p style={{ color: THEME.muted, margin: 0, fontSize: 14 }}>Choose two or more tools from the list above</p>
+        </div>
+      )}
       <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid #2d2d4e", borderRadius: 16, padding: isMobile ? 14 : 20, marginBottom: 16 }}>
         <div style={{ fontWeight: 700, fontSize: 13, color: THEME.subtle, marginBottom: 16 }}>CATEGORY SCORES</div>
         <div style={{ height: isMobile ? 220 : 300 }}><Bar data={barData} options={barOptions} /></div>
@@ -565,9 +611,10 @@ function RadarView({ selectedTools: sel, onToggleTool, isMobile, tools, categori
           </div>
         </div>
       ) : (
-        <div style={{ textAlign: "center", padding: 60 }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🕸️</div>
-          <div style={{ color: "#374151", fontSize: 14 }}>Select at least one tool above</div>
+        <div style={{ padding: "60px 24px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <div style={{ fontSize: 48, color: THEME.dimmed }}>🕸️</div>
+          <h3 style={{ color: THEME.text, margin: 0 }}>Select tools to compare</h3>
+          <p style={{ color: THEME.muted, margin: 0, fontSize: 14 }}>Use the toggles above to add tools to the chart</p>
         </div>
       )}
     </div>
@@ -610,9 +657,10 @@ function BenchmarksView({ selectedTools: sel, onToggleTool, isMobile, tools }) {
           </div>
         </>
       ) : (
-        <div style={{ textAlign: "center", padding: 60 }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🏆</div>
-          <div style={{ color: "#374151", fontSize: 14 }}>Select at least one tool above</div>
+        <div style={{ padding: "60px 24px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <div style={{ fontSize: 48, color: THEME.dimmed }}>🏆</div>
+          <h3 style={{ color: THEME.text, margin: 0 }}>Select tools to compare</h3>
+          <p style={{ color: THEME.muted, margin: 0, fontSize: 14 }}>Use the toggles above to add tools to the chart</p>
         </div>
       )}
     </div>
