@@ -8,7 +8,40 @@ import {
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler,
   ChartTooltip, Legend, CategoryScale, LinearScale, BarElement);
 
-// ─── RESPONSIVE HOOK ──────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://czxhavedloklkyqhjvpz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_AxknLEzD-VAetyqpzIU0TQ_zVL-QKmm";
+
+async function fetchFromSupabase(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+  });
+  if (!res.ok) throw new Error(`Supabase error: ${res.status}`);
+  return res.json();
+}
+
+function buildToolsFromDB(rawTools, rawCategories, rawToolCats) {
+  return rawTools.map(t => {
+    const categories = {};
+    rawToolCats.filter(tc => tc.tool_id === t.id).forEach(tc => {
+      categories[tc.category_id] = { rank: tc.rank, score: tc.score, notes: tc.notes };
+    });
+    return {
+      id: t.id, name: t.name, maker: t.maker, color: t.color, accent: t.accent,
+      personality: t.personality, tagline: t.tagline, avatar: t.avatar,
+      traits: t.traits || [], bestFor: t.best_for || [],
+      pricing: { free: t.pricing_free, pro: t.pricing_pro },
+      benchmarks: { mmlu: t.benchmark_mmlu, humaneval: t.benchmark_humaneval, gsm8k: t.benchmark_gsm8k },
+      arenaElo: t.arena_elo, categories,
+    };
+  });
+}
+
+function buildCategoriesFromDB(rawCategories) {
+  return [...rawCategories].sort((a, b) => a.sort_order - b.sort_order).map(c => ({
+    id: c.id, label: c.label, shortLabel: c.short_label, description: c.description,
+  }));
+}
+
 function useBreakpoint() {
   const [width, setWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1024);
   useEffect(() => {
@@ -19,124 +52,14 @@ function useBreakpoint() {
   return { isMobile: width < 640, isTablet: width < 900, width };
 }
 
-// ─── DATA ─────────────────────────────────────────────────────────────────────
-const tools = [
-  {
-    id: "claude", name: "Claude", maker: "Anthropic",
-    color: "#D4845A", accent: "#F2C49B",
-    personality: "The Thoughtful Architect",
-    tagline: "Deep reasoning, careful nuance, minimal hallucination",
-    avatar: "🧠", traits: ["Nuanced", "Structured", "Reflective", "Honest"],
-    pricing: { free: true, pro: "$20/mo" }, bestFor: ["discuss", "write"],
-    categories: {
-      discuss: { rank: 1, score: 97, notes: "Best back-and-forth dialogue. Highly efficient token use. Strong at holding context, pushing back intelligently, and refining ideas iteratively." },
-      build:   { rank: 2, score: 85, notes: "Claude Code + Projects make it a strong build partner. Excels at architecture planning and complex multi-file reasoning." },
-      analyse: { rank: 2, score: 88, notes: "Exceptional at synthesising complex material, comparing frameworks, and producing structured analysis." },
-      write:   { rank: 1, score: 96, notes: "Best long-form quality. Strong voice consistency, nuanced tone-matching, and editing ability." },
-      create:  { rank: 3, score: 72, notes: "Can ideate well but lacks native image gen. Artifact feature useful for interactive mockups." },
-    },
-    benchmarks: { mmlu: 88.7, humaneval: 79.6, gsm8k: 92.0 }, arenaElo: 1250,
-  },
-  {
-    id: "gpt", name: "ChatGPT", maker: "OpenAI",
-    color: "#10A37F", accent: "#6EE7C7",
-    personality: "The Swiss Army Knife",
-    tagline: "Broadest plugin ecosystem, reliable generalist powerhouse",
-    avatar: "⚙️", traits: ["Versatile", "Plugged-in", "Fast", "Broad"],
-    pricing: { free: true, pro: "$20/mo" }, bestFor: ["build", "create"],
-    categories: {
-      discuss: { rank: 2, score: 88, notes: "Solid conversational quality. GPT-4o is fast and fluid. Memory feature helps continuity. Can be verbose — watch token drain on quick chats." },
-      build:   { rank: 1, score: 94, notes: "Best ecosystem for build workflows: Code Interpreter, Zapier, browsing, DALL·E, custom GPTs. Advanced Data Analysis is unmatched." },
-      analyse: { rank: 1, score: 92, notes: "Live web browsing + Python execution = powerful research combo. Best for real-time data and market research." },
-      write:   { rank: 2, score: 87, notes: "Reliable, clean output. Custom Instructions help tailor tone. Slightly less literary depth than Claude but very production-ready." },
-      create:  { rank: 1, score: 95, notes: "DALL·E 3 integration + Sora access + GPT-4o image understanding. Best all-round creative suite for multimodal work." },
-    },
-    benchmarks: { mmlu: 88.7, humaneval: 85.4, gsm8k: 92.0 }, arenaElo: 1200,
-  },
-  {
-    id: "gemini", name: "Gemini", maker: "Google",
-    color: "#4285F4", accent: "#A8C7FA",
-    personality: "The Research Librarian",
-    tagline: "Google-native search fusion, massive context window",
-    avatar: "🔍", traits: ["Connected", "Contextual", "Grounded", "Thorough"],
-    pricing: { free: true, pro: "$19.99/mo" }, bestFor: ["analyse"],
-    categories: {
-      discuss: { rank: 4, score: 74, notes: "Improving but less fluid in back-and-forth. Deep Research mode is slow for quick planning. Better for structured Q&A." },
-      build:   { rank: 3, score: 80, notes: "Strong in Google Workspace automation. Gemini in Colab is excellent for data science." },
-      analyse: { rank: 3, score: 90, notes: "2M token context window is a game-changer for document analysis. Gemini Deep Research produces thorough, cited reports." },
-      write:   { rank: 3, score: 82, notes: "Good structured writing, especially for factual/research-backed content. Less creative flair than Claude." },
-      create:  { rank: 2, score: 88, notes: "Imagen 3 produces excellent photorealistic outputs. Strong multimodal understanding across video, audio, and images." },
-    },
-    benchmarks: { mmlu: 90.0, humaneval: 84.0, gsm8k: 94.4 }, arenaElo: 1230,
-  },
-  {
-    id: "grok", name: "Grok", maker: "xAI",
-    color: "#E7363D", accent: "#F9A8AB",
-    personality: "The Real-Time Contrarian",
-    tagline: "X/Twitter-native, edgy, unfiltered live-data access",
-    avatar: "⚡", traits: ["Current", "Bold", "Unfiltered", "Social"],
-    pricing: { free: false, pro: "X Premium (~$8–16/mo)" }, bestFor: [],
-    categories: {
-      discuss: { rank: 3, score: 78, notes: "Witty and direct. Good for pressure-testing ideas. Less structured than Claude for long planning." },
-      build:   { rank: 4, score: 68, notes: "Grok 3 shows real coding ability but ecosystem lags. Best for quick scripts and X/social automations." },
-      analyse: { rank: 4, score: 80, notes: "Unique edge: real-time X/Twitter data. Best for social intelligence and trending topics. Weaker on deep academic research." },
-      write:   { rank: 4, score: 75, notes: "Good for punchy, opinionated content and social copy. Less suited to formal long-form writing." },
-      create:  { rank: 4, score: 70, notes: "Aurora image gen improving but trails DALL·E 3 and Imagen 3. Strong for social-native visuals." },
-    },
-    benchmarks: { mmlu: 87.0, humaneval: 73.0, gsm8k: 88.0 }, arenaElo: 1180,
-  },
-  {
-    id: "perplexity", name: "Perplexity", maker: "Perplexity AI",
-    color: "#6C5CE7", accent: "#C4B8FF",
-    personality: "The Fact-Checker",
-    tagline: "Search-first AI — every answer cited and sourced",
-    avatar: "📎", traits: ["Cited", "Precise", "Current", "Honest"],
-    pricing: { free: true, pro: "$20/mo" }, bestFor: ["analyse"],
-    categories: {
-      discuss: { rank: 5, score: 65, notes: "Not designed for dialogue. Better as a lookup tool than a thinking partner." },
-      build:   { rank: 5, score: 50, notes: "Not a build tool. Code help is basic. No agent or automation features." },
-      analyse: { rank: 2, score: 91, notes: "Best pure research tool. Every claim is cited, sources ranked, answers current. Ideal for due diligence and fact verification." },
-      write:   { rank: 5, score: 62, notes: "Useful as a research backbone for writing but output is functional, not polished." },
-      create:  { rank: 5, score: 40, notes: "No creative or image generation features." },
-    },
-    benchmarks: { mmlu: null, humaneval: null, gsm8k: null }, arenaElo: null,
-  },
-  {
-    id: "cursor", name: "Cursor", maker: "Anysphere",
-    color: "#F7B731", accent: "#FDE68A",
-    personality: "The Code Specialist",
-    tagline: "IDE-embedded AI — build faster inside your actual codebase",
-    avatar: "💻", traits: ["Precise", "In-context", "Fast", "Automated"],
-    pricing: { free: true, pro: "$20/mo" }, bestFor: ["build"],
-    categories: {
-      discuss: { rank: 6, score: 45, notes: "Not designed for open discussion. Poor for strategy or ideation outside dev tasks." },
-      build:   { rank: 1, score: 98, notes: "Best build tool bar none. Multi-file edits, full repo context, terminal automation. Cursor Agent autonomously plans and implements complex features." },
-      analyse: { rank: 6, score: 55, notes: "Good at code-level analysis: bugs, architecture, PR reviews. Poor at broader research." },
-      write:   { rank: 6, score: 40, notes: "Not a writing tool." },
-      create:  { rank: 6, score: 30, notes: "UI mockup generation improving but not its purpose." },
-    },
-    benchmarks: { mmlu: null, humaneval: null, gsm8k: null }, arenaElo: null,
-  },
-];
-
-const CATEGORIES = [
-  { id: "discuss", label: "💬 Discuss & Plan",      shortLabel: "Discuss",  description: "Back-and-forth dialogue, ideation, strategy — token efficiency and conversational depth matter most." },
-  { id: "build",   label: "🔨 Build & Execute",      shortLabel: "Build",    description: "App development, automation, agentic tasks — tooling, code quality, and process orchestration." },
-  { id: "analyse", label: "🔬 Understand & Analyse", shortLabel: "Analyse",  description: "Web research, information harvesting, concept comparison — sourcing and analytical depth." },
-  { id: "write",   label: "✍️ Write & Communicate",  shortLabel: "Write",    description: "Long-form content, documents, editing, voice-matching — prose quality and structure." },
-  { id: "create",  label: "🎨 Create & Visualise",   shortLabel: "Create",   description: "Image generation, multimodal creativity, visual ideation — generative output quality." },
-];
-
 const BENCHMARKS_META = [
   { id: "mmlu",      label: "MMLU",      description: "Multi-task language understanding across 57 subjects (% correct)." },
   { id: "humaneval", label: "HumanEval", description: "Coding ability — % of programming problems solved correctly." },
   { id: "gsm8k",     label: "GSM8K",     description: "Grade school math reasoning (% correct)." },
 ];
-
 const MEDALS = ["🥇", "🥈", "🥉", "4th", "5th", "6th"];
 const MEDAL_COLORS = ["#F59E0B", "#9CA3AF", "#CD7C3C", "#6B7280", "#6B7280", "#6B7280"];
 
-// ─── QUIZ ─────────────────────────────────────────────────────────────────────
 const QUIZ = [
   { id: "primary_use", question: "What do you use AI for most?", emoji: "🎯", options: [
     { label: "Planning & thinking out loud", value: "discuss" },
@@ -159,9 +82,9 @@ const QUIZ = [
     { label: "Hands-off automation / agents", value: "agentic"        },
   ]},
   { id: "budget", question: "What's your budget?", emoji: "💰", options: [
-    { label: "Free only",          value: "free"      },
-    { label: "Up to $20/month",    value: "mid"       },
-    { label: "Whatever it takes",  value: "unlimited" },
+    { label: "Free only",         value: "free"      },
+    { label: "Up to $20/month",   value: "mid"       },
+    { label: "Whatever it takes", value: "unlimited" },
   ]},
   { id: "tech_comfort", question: "How technical are you?", emoji: "🛠️", options: [
     { label: "Non-technical — I just need it to work", value: "low"  },
@@ -170,7 +93,7 @@ const QUIZ = [
   ]},
 ];
 
-function scoreToolsFromAnswers(answers) {
+function scoreToolsFromAnswers(tools, answers) {
   return tools.map(tool => {
     let score = 0;
     const cats = tool.categories;
@@ -189,7 +112,6 @@ function scoreToolsFromAnswers(answers) {
   }).sort((a, b) => b.quizScore - a.quizScore);
 }
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
 function hexToRgb(hex) {
   return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)].join(",");
 }
@@ -202,34 +124,47 @@ function ScoreBar({ score, color }) {
   );
 }
 
-function radarChartData(selectedToolList) {
+function radarChartData(selectedToolList, categories) {
   return {
-    labels: CATEGORIES.map(c => c.shortLabel),
+    labels: categories.map(c => c.shortLabel),
     datasets: selectedToolList.map(tool => ({
       label: tool.name,
-      data: CATEGORIES.map(c => tool.categories[c.id]?.score || 0),
-      backgroundColor: `${tool.color}33`,
-      borderColor: tool.color,
-      borderWidth: 2,
-      pointBackgroundColor: tool.color,
+      data: categories.map(c => tool.categories[c.id]?.score || 0),
+      backgroundColor: `${tool.color}33`, borderColor: tool.color,
+      borderWidth: 2, pointBackgroundColor: tool.color,
     })),
   };
 }
 
-// ─── QUIZ VIEWS ───────────────────────────────────────────────────────────────
-function QuizView({ onComplete, isMobile }) {
+function LoadingScreen() {
+  return (
+    <div style={{ minHeight: "100vh", background: "#0d0d1a", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
+      <div style={{ fontSize: 32 }}>⏳</div>
+      <div style={{ color: "#475569", fontSize: 14 }}>Loading tool data…</div>
+    </div>
+  );
+}
+
+function ErrorScreen({ message }) {
+  return (
+    <div style={{ minHeight: "100vh", background: "#0d0d1a", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16, padding: 32 }}>
+      <div style={{ fontSize: 32 }}>⚠️</div>
+      <div style={{ color: "#EF4444", fontSize: 14, textAlign: "center", maxWidth: 400 }}>{message}</div>
+    </div>
+  );
+}
+
+function QuizView({ onComplete, isMobile, tools }) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({});
   const q = QUIZ[step];
   const progress = (step / QUIZ.length) * 100;
-
   const handleAnswer = (value) => {
     const next = { ...answers, [q.id]: value };
     setAnswers(next);
     if (step < QUIZ.length - 1) setStep(step + 1);
-    else onComplete(scoreToolsFromAnswers(next));
+    else onComplete(scoreToolsFromAnswers(tools, next));
   };
-
   return (
     <div style={{ padding: isMobile ? "24px 16px" : "32px 24px", maxWidth: 560, margin: "0 auto" }}>
       <div style={{ marginBottom: 28 }}>
@@ -309,8 +244,7 @@ function QuizResult({ results, onRetake, onGoToTool, isMobile }) {
   );
 }
 
-// ─── RANKED VIEW ──────────────────────────────────────────────────────────────
-function RankedView({ activeCategory, isMobile }) {
+function RankedView({ activeCategory, isMobile, tools }) {
   const [expandedTool, setExpandedTool] = useState(null);
   const ranked = [...tools].filter(t => t.categories[activeCategory]).sort((a, b) => a.categories[activeCategory].rank - b.categories[activeCategory].rank);
   return (
@@ -363,10 +297,8 @@ function RankedView({ activeCategory, isMobile }) {
   );
 }
 
-// ─── MATRIX VIEW ─────────────────────────────────────────────────────────────
-function MatrixView({ isMobile }) {
+function MatrixView({ isMobile, tools, categories }) {
   const [expandedTool, setExpandedTool] = useState(null);
-
   if (isMobile) {
     return (
       <div style={{ padding: "16px 12px 0" }}>
@@ -382,7 +314,7 @@ function MatrixView({ isMobile }) {
             </div>
             {expandedTool === tool.id && (
               <div style={{ padding: "12px 14px", borderTop: "1px solid #2d2d4e" }}>
-                {CATEGORIES.map(c => {
+                {categories.map(c => {
                   const d = tool.categories[c.id];
                   return (
                     <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -400,18 +332,17 @@ function MatrixView({ isMobile }) {
       </div>
     );
   }
-
   return (
     <div style={{ padding: "24px", overflowX: "auto" }}>
       <div style={{ minWidth: 660 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "170px repeat(5,1fr)", gap: 8, marginBottom: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `170px repeat(${categories.length},1fr)`, gap: 8, marginBottom: 8 }}>
           <div />
-          {CATEGORIES.map(c => (
+          {categories.map(c => (
             <div key={c.id} style={{ textAlign: "center", fontSize: 11, color: "#64748b", fontWeight: 600, lineHeight: 1.4, padding: "4px 2px" }}>{c.label}</div>
           ))}
         </div>
         {tools.map(tool => (
-          <div key={tool.id} style={{ display: "grid", gridTemplateColumns: "170px repeat(5,1fr)", gap: 8, marginBottom: 8 }}>
+          <div key={tool.id} style={{ display: "grid", gridTemplateColumns: `170px repeat(${categories.length},1fr)`, gap: 8, marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 12px", border: "1px solid #2d2d4e" }}>
               <span style={{ fontSize: 18 }}>{tool.avatar}</span>
               <div>
@@ -419,7 +350,7 @@ function MatrixView({ isMobile }) {
                 <div style={{ fontSize: 10, color: "#475569" }}>{tool.maker}</div>
               </div>
             </div>
-            {CATEGORIES.map(c => {
+            {categories.map(c => {
               const d = tool.categories[c.id];
               return (
                 <div key={c.id} style={{
@@ -439,100 +370,66 @@ function MatrixView({ isMobile }) {
   );
 }
 
-// ─── COMPARE VIEW ─────────────────────────────────────────────────────────────
-function CompareView({ isMobile }) {
+function CompareView({ isMobile, tools, categories }) {
   const [selectedIds, setSelectedIds] = useState(["claude", "gpt"]);
   const toggle = (id) => setSelectedIds(prev => prev.includes(id) ? (prev.length > 1 ? prev.filter(x => x !== id) : prev) : [...prev, id]);
   const selected = tools.filter(t => selectedIds.includes(t.id));
-
   const barData = {
-    labels: CATEGORIES.map(c => c.shortLabel),
+    labels: categories.map(c => c.shortLabel),
     datasets: selected.map(t => ({
-      label: t.name, data: CATEGORIES.map(c => t.categories[c.id]?.score || 0),
+      label: t.name, data: categories.map(c => t.categories[c.id]?.score || 0),
       backgroundColor: t.color + "99", borderColor: t.color, borderWidth: 2, borderRadius: 4,
     })),
   };
-
-  const sharedChartConfig = {
+  const sharedCfg = {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { labels: { color: "#e2e8f0", padding: 16 } }, tooltip: { backgroundColor: "#1a1a2e", titleColor: "#f1f5f9", bodyColor: "#94a3b8" } },
     animation: { duration: 500 },
   };
-
-  const barOptions = {
-    ...sharedChartConfig,
-    scales: {
-      y: { beginAtZero: false, min: 30, max: 100, grid: { color: "#1e2a3a" }, ticks: { color: "#64748b" } },
-      x: { grid: { color: "#1e2a3a" }, ticks: { color: "#94a3b8", font: { size: isMobile ? 10 : 12 } } },
-    },
-  };
-
-  const radarOptions = {
-    ...sharedChartConfig,
-    scales: { r: { min: 0, max: 100, ticks: { stepSize: 20, color: "#475569" }, grid: { color: "#2d2d4e" }, angleLines: { color: "#2d2d4e" }, pointLabels: { color: "#94a3b8", font: { size: isMobile ? 10 : 12 } } } },
-    plugins: { ...sharedChartConfig.plugins, legend: { ...sharedChartConfig.plugins.legend, position: "bottom" } },
-  };
-
+  const barOptions = { ...sharedCfg, scales: { y: { beginAtZero: false, min: 30, max: 100, grid: { color: "#1e2a3a" }, ticks: { color: "#64748b" } }, x: { grid: { color: "#1e2a3a" }, ticks: { color: "#94a3b8", font: { size: isMobile ? 10 : 12 } } } } };
+  const radarOptions = { ...sharedCfg, scales: { r: { min: 0, max: 100, ticks: { stepSize: 20, color: "#475569" }, grid: { color: "#2d2d4e" }, angleLines: { color: "#2d2d4e" }, pointLabels: { color: "#94a3b8", font: { size: isMobile ? 10 : 12 } } } }, plugins: { ...sharedCfg.plugins, legend: { ...sharedCfg.plugins.legend, position: "bottom" } } };
   return (
     <div style={{ padding: isMobile ? "16px 12px 0" : "20px 24px 0", maxWidth: 900, margin: "0 auto" }}>
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 11, color: "#475569", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Select tools to compare</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {tools.map(t => (
-            <button key={t.id} onClick={() => toggle(t.id)} style={{
-              display: "flex", alignItems: "center", gap: 6, padding: isMobile ? "7px 12px" : "8px 16px",
-              borderRadius: 20, border: `1px solid ${selectedIds.includes(t.id) ? t.color : "#2d2d4e"}`,
-              background: selectedIds.includes(t.id) ? `${t.color}22` : "transparent",
-              color: selectedIds.includes(t.id) ? t.accent : "#64748b",
-              cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: 600, transition: "all 0.15s",
-            }}><span>{t.avatar}</span>{t.name}</button>
+            <button key={t.id} onClick={() => toggle(t.id)} style={{ display: "flex", alignItems: "center", gap: 6, padding: isMobile ? "7px 12px" : "8px 16px", borderRadius: 20, border: `1px solid ${selectedIds.includes(t.id) ? t.color : "#2d2d4e"}`, background: selectedIds.includes(t.id) ? `${t.color}22` : "transparent", color: selectedIds.includes(t.id) ? t.accent : "#64748b", cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: 600, transition: "all 0.15s" }}><span>{t.avatar}</span>{t.name}</button>
           ))}
         </div>
       </div>
-
       <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid #2d2d4e", borderRadius: 16, padding: isMobile ? 14 : 20, marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, color: "#94a3b8", marginBottom: 16, letterSpacing: "0.05em" }}>CATEGORY SCORES</div>
+        <div style={{ fontWeight: 700, fontSize: 13, color: "#94a3b8", marginBottom: 16 }}>CATEGORY SCORES</div>
         <div style={{ height: isMobile ? 220 : 300 }}><Bar data={barData} options={barOptions} /></div>
       </div>
-
       <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid #2d2d4e", borderRadius: 16, padding: isMobile ? 14 : 20, marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, color: "#94a3b8", marginBottom: 16, letterSpacing: "0.05em" }}>RADAR OVERLAY</div>
+        <div style={{ fontWeight: 700, fontSize: 13, color: "#94a3b8", marginBottom: 16 }}>RADAR OVERLAY</div>
         <div style={{ maxWidth: 480, margin: "0 auto", height: isMobile ? 260 : 380 }}>
-          <Radar data={radarChartData(selected)} options={radarOptions} />
+          <Radar data={radarChartData(selected, categories)} options={radarOptions} />
         </div>
       </div>
-
       <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid #2d2d4e", borderRadius: 16, padding: isMobile ? 14 : 20 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, color: "#94a3b8", marginBottom: 16, letterSpacing: "0.05em" }}>HEAD-TO-HEAD</div>
+        <div style={{ fontWeight: 700, fontSize: 13, color: "#94a3b8", marginBottom: 16 }}>HEAD-TO-HEAD</div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? 12 : 13 }}>
-            <thead>
-              <tr>
-                <td style={{ padding: "8px 12px", color: "#475569", fontWeight: 600, borderBottom: "1px solid #2d2d4e" }}>Category</td>
-                {selected.map(t => <td key={t.id} style={{ padding: "8px 12px", textAlign: "center", borderBottom: "1px solid #2d2d4e", color: t.color, fontWeight: 700 }}>{t.avatar} {t.name}</td>)}
-              </tr>
-            </thead>
+            <thead><tr>
+              <td style={{ padding: "8px 12px", color: "#475569", fontWeight: 600, borderBottom: "1px solid #2d2d4e" }}>Category</td>
+              {selected.map(t => <td key={t.id} style={{ padding: "8px 12px", textAlign: "center", borderBottom: "1px solid #2d2d4e", color: t.color, fontWeight: 700 }}>{t.avatar} {t.name}</td>)}
+            </tr></thead>
             <tbody>
-              {CATEGORIES.map(c => {
+              {categories.map(c => {
                 const scores = selected.map(t => t.categories[c.id]?.score || 0);
                 const maxScore = Math.max(...scores);
                 return (
                   <tr key={c.id}>
                     <td style={{ padding: "10px 12px", color: "#64748b", borderBottom: "1px solid #1a1a2e" }}>{c.label}</td>
-                    {selected.map(t => {
-                      const score = t.categories[c.id]?.score || 0;
-                      const isWinner = score === maxScore;
-                      return <td key={t.id} style={{ padding: "10px 12px", textAlign: "center", borderBottom: "1px solid #1a1a2e", fontWeight: isWinner ? 800 : 500, color: isWinner ? t.color : "#64748b", fontSize: isWinner ? 15 : 13 }}>{isWinner ? "★ " : ""}{score}</td>;
-                    })}
+                    {selected.map(t => { const score = t.categories[c.id]?.score || 0; const isWinner = score === maxScore; return <td key={t.id} style={{ padding: "10px 12px", textAlign: "center", borderBottom: "1px solid #1a1a2e", fontWeight: isWinner ? 800 : 500, color: isWinner ? t.color : "#64748b", fontSize: isWinner ? 15 : 13 }}>{isWinner ? "★ " : ""}{score}</td>; })}
                   </tr>
                 );
               })}
               <tr style={{ background: "rgba(255,255,255,0.02)" }}>
                 <td style={{ padding: "10px 12px", color: "#94a3b8", fontWeight: 700 }}>Overall avg</td>
-                {selected.map(t => {
-                  const avg = Math.round(Object.values(t.categories).reduce((s, c) => s + c.score, 0) / Object.values(t.categories).length);
-                  return <td key={t.id} style={{ padding: "10px 12px", textAlign: "center", fontWeight: 800, color: t.color, fontSize: 16 }}>{avg}</td>;
-                })}
+                {selected.map(t => { const avg = Math.round(Object.values(t.categories).reduce((s, c) => s + c.score, 0) / Object.values(t.categories).length); return <td key={t.id} style={{ padding: "10px 12px", textAlign: "center", fontWeight: 800, color: t.color, fontSize: 16 }}>{avg}</td>; })}
               </tr>
             </tbody>
           </table>
@@ -542,8 +439,7 @@ function CompareView({ isMobile }) {
   );
 }
 
-// ─── RADAR VIEW ───────────────────────────────────────────────────────────────
-function RadarView({ selectedTools: sel, onToggleTool, isMobile }) {
+function RadarView({ selectedTools: sel, onToggleTool, isMobile, tools, categories }) {
   const selected = tools.filter(t => sel.includes(t.id));
   const radarOptions = {
     scales: { r: { min: 0, max: 100, ticks: { stepSize: 20, color: "#94a3b8" }, grid: { color: "#2d2d4e" }, angleLines: { color: "#2d2d4e" }, pointLabels: { color: "#e2e8f0", font: { size: isMobile ? 10 : 12 } } } },
@@ -555,19 +451,13 @@ function RadarView({ selectedTools: sel, onToggleTool, isMobile }) {
       <p style={{ textAlign: "center", color: "#64748b", fontSize: 13, marginBottom: 16 }}>Select tools to overlay on the radar</p>
       <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 24 }}>
         {tools.map(t => (
-          <button key={t.id} onClick={() => onToggleTool(t.id)} style={{
-            display: "flex", alignItems: "center", gap: 6, padding: isMobile ? "7px 12px" : "8px 14px", borderRadius: 20,
-            border: `1px solid ${sel.includes(t.id) ? t.color : "#2d2d4e"}`,
-            background: sel.includes(t.id) ? `${t.color}22` : "transparent",
-            color: sel.includes(t.id) ? t.accent : "#64748b",
-            cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: 600, transition: "all 0.2s",
-          }}><span>{t.avatar}</span>{t.name}</button>
+          <button key={t.id} onClick={() => onToggleTool(t.id)} style={{ display: "flex", alignItems: "center", gap: 6, padding: isMobile ? "7px 12px" : "8px 14px", borderRadius: 20, border: `1px solid ${sel.includes(t.id) ? t.color : "#2d2d4e"}`, background: sel.includes(t.id) ? `${t.color}22` : "transparent", color: sel.includes(t.id) ? t.accent : "#64748b", cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: 600, transition: "all 0.2s" }}><span>{t.avatar}</span>{t.name}</button>
         ))}
       </div>
       {selected.length > 0 ? (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid #2d2d4e", borderRadius: 16, padding: isMobile ? 14 : 24 }}>
           <div style={{ maxWidth: 500, margin: "0 auto", height: isMobile ? 280 : 420 }}>
-            <Radar data={radarChartData(selected)} options={radarOptions} />
+            <Radar data={radarChartData(selected, categories)} options={radarOptions} />
           </div>
         </div>
       ) : (
@@ -580,34 +470,18 @@ function RadarView({ selectedTools: sel, onToggleTool, isMobile }) {
   );
 }
 
-// ─── BENCHMARKS VIEW ─────────────────────────────────────────────────────────
-function BenchmarksView({ selectedTools: sel, onToggleTool, isMobile }) {
+function BenchmarksView({ selectedTools: sel, onToggleTool, isMobile, tools }) {
   const selected = tools.filter(t => sel.includes(t.id));
-
-  const percentData = {
-    labels: BENCHMARKS_META.map(b => b.label),
-    datasets: selected.map(t => ({ label: t.name, data: BENCHMARKS_META.map(b => t.benchmarks[b.id] ?? null), backgroundColor: t.color + "88", borderColor: t.color, borderWidth: 1 })),
-  };
-  const eloData = {
-    labels: ["Arena Elo"],
-    datasets: selected.map(t => ({ label: t.name, data: [t.arenaElo ?? null], backgroundColor: t.color + "88", borderColor: t.color, borderWidth: 1 })),
-  };
-
+  const percentData = { labels: BENCHMARKS_META.map(b => b.label), datasets: selected.map(t => ({ label: t.name, data: BENCHMARKS_META.map(b => t.benchmarks[b.id] ?? null), backgroundColor: t.color + "88", borderColor: t.color, borderWidth: 1 })) };
+  const eloData = { labels: ["Arena Elo"], datasets: selected.map(t => ({ label: t.name, data: [t.arenaElo ?? null], backgroundColor: t.color + "88", borderColor: t.color, borderWidth: 1 })) };
   const baseOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#e2e8f0" } }, tooltip: { backgroundColor: "#1a1a2e", bodyColor: "#94a3b8", titleColor: "#f1f5f9" } }, animation: { duration: 500 } };
   const pOpts = { ...baseOpts, scales: { y: { beginAtZero: false, min: 60, max: 100, grid: { color: "#1e2a3a" }, ticks: { color: "#64748b" } }, x: { grid: { color: "#1e2a3a" }, ticks: { color: "#94a3b8" } } } };
   const eOpts = { ...baseOpts, scales: { y: { beginAtZero: false, min: 1100, grid: { color: "#1e2a3a" }, ticks: { color: "#64748b" } }, x: { grid: { color: "#1e2a3a" }, ticks: { color: "#94a3b8" } } } };
-
   return (
     <div style={{ padding: isMobile ? "16px 12px 0" : "24px", maxWidth: 860, margin: "0 auto" }}>
       <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 24 }}>
         {tools.map(t => (
-          <button key={t.id} onClick={() => onToggleTool(t.id)} style={{
-            display: "flex", alignItems: "center", gap: 6, padding: isMobile ? "7px 12px" : "8px 14px", borderRadius: 20,
-            border: `1px solid ${sel.includes(t.id) ? t.color : "#2d2d4e"}`,
-            background: sel.includes(t.id) ? `${t.color}22` : "transparent",
-            color: sel.includes(t.id) ? t.accent : "#64748b",
-            cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: 600, transition: "all 0.2s",
-          }}><span>{t.avatar}</span>{t.name}</button>
+          <button key={t.id} onClick={() => onToggleTool(t.id)} style={{ display: "flex", alignItems: "center", gap: 6, padding: isMobile ? "7px 12px" : "8px 14px", borderRadius: 20, border: `1px solid ${sel.includes(t.id) ? t.color : "#2d2d4e"}`, background: sel.includes(t.id) ? `${t.color}22` : "transparent", color: sel.includes(t.id) ? t.accent : "#64748b", cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: 600, transition: "all 0.2s" }}><span>{t.avatar}</span>{t.name}</button>
         ))}
       </div>
       {selected.length > 0 ? (
@@ -641,7 +515,6 @@ function BenchmarksView({ selectedTools: sel, onToggleTool, isMobile }) {
   );
 }
 
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
 const VIEWS = [
   { id: "quiz",       label: "❓ Quiz"       },
   { id: "ranked",     label: "📊 Ranked"     },
@@ -657,68 +530,73 @@ export default function AIGuide() {
   const [activeCategory, setActiveCategory] = useState("discuss");
   const [selectedTools, setSelectedTools] = useState([]);
   const [quizResults, setQuizResults] = useState(null);
+  const [tools, setTools] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [rawTools, rawCategories, rawToolCats] = await Promise.all([
+          fetchFromSupabase("tools?select=*&order=id"),
+          fetchFromSupabase("categories?select=*&order=sort_order"),
+          fetchFromSupabase("tool_categories?select=*"),
+        ]);
+        setCategories(buildCategoriesFromDB(rawCategories));
+        setTools(buildToolsFromDB(rawTools, rawCategories, rawToolCats));
+      } catch (err) {
+        setError(`Failed to load data: ${err.message}`);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
 
   const showCategoryTabs = view === "ranked" || view === "matrix";
-  const cat = CATEGORIES.find(c => c.id === activeCategory);
-
+  const cat = categories.find(c => c.id === activeCategory);
   const toggleTool = useCallback((id) => setSelectedTools(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]), []);
   const handleQuizComplete = useCallback((results) => setQuizResults(results), []);
   const handleGoToTool = useCallback(() => { setView("ranked"); setActiveCategory("discuss"); }, []);
   const handleViewChange = (v) => { setView(v); if (v === "quiz") setQuizResults(null); if (!["radar", "benchmarks"].includes(v)) setSelectedTools([]); };
 
+  if (loading) return <LoadingScreen />;
+  if (error)   return <ErrorScreen message={error} />;
+
   return (
     <div style={{ minHeight: "100vh", background: "#0d0d1a", color: "#e2e8f0", fontFamily: "'DM Sans','Segoe UI',sans-serif", paddingBottom: 60 }}>
       <style>{`* { box-sizing: border-box; } ::-webkit-scrollbar{width:4px;height:4px} ::-webkit-scrollbar-track{background:#0d0d1a} ::-webkit-scrollbar-thumb{background:#2d2d4e;border-radius:2px}`}</style>
-
       <div style={{ background: "linear-gradient(135deg,#0d0d1a 0%,#1a1035 50%,#0d0d1a 100%)", borderBottom: "1px solid #2d2d4e", padding: isMobile ? "28px 16px 20px" : "36px 24px 28px", textAlign: "center", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 0%,rgba(108,92,231,0.18) 0%,transparent 70%)", pointerEvents: "none" }} />
         <div style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "#6C5CE7", marginBottom: 8, fontWeight: 600 }}>AI TOOL INTELLIGENCE GUIDE</div>
-        <h1 style={{ fontSize: isMobile ? "clamp(22px,7vw,32px)" : "clamp(26px,5vw,44px)", fontWeight: 800, margin: "0 0 8px", background: "linear-gradient(135deg,#ffffff 0%,#a78bfa 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>
-          Which AI, When
-        </h1>
-        <p style={{ color: "#94a3b8", fontSize: isMobile ? 13 : 14, maxWidth: 440, margin: "0 auto 18px", lineHeight: 1.6 }}>
-          Ranked by use case — not hype. Pick the right tool for the right job.
-        </p>
+        <h1 style={{ fontSize: isMobile ? "clamp(22px,7vw,32px)" : "clamp(26px,5vw,44px)", fontWeight: 800, margin: "0 0 8px", background: "linear-gradient(135deg,#ffffff 0%,#a78bfa 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>Which AI, When</h1>
+        <p style={{ color: "#94a3b8", fontSize: isMobile ? 13 : 14, maxWidth: 440, margin: "0 auto 18px", lineHeight: 1.6 }}>Ranked by use case — not hype. Pick the right tool for the right job.</p>
         <div style={{ display: "flex", gap: 6, justifyContent: isMobile ? "flex-start" : "center", flexWrap: isMobile ? "nowrap" : "wrap", overflowX: isMobile ? "auto" : "visible", padding: isMobile ? "0 0 4px" : "0", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
           {VIEWS.map(v => (
-            <button key={v.id} onClick={() => handleViewChange(v.id)} style={{
-              flexShrink: 0, padding: isMobile ? "7px 14px" : "7px 16px", borderRadius: 20, border: "1px solid",
-              borderColor: view === v.id ? "#6C5CE7" : "#2d2d4e",
-              background: view === v.id ? "rgba(108,92,231,0.2)" : "transparent",
-              color: view === v.id ? "#a78bfa" : "#64748b",
-              cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: 600, transition: "all 0.2s", whiteSpace: "nowrap",
-            }}>{v.label}</button>
+            <button key={v.id} onClick={() => handleViewChange(v.id)} style={{ flexShrink: 0, padding: isMobile ? "7px 14px" : "7px 16px", borderRadius: 20, border: "1px solid", borderColor: view === v.id ? "#6C5CE7" : "#2d2d4e", background: view === v.id ? "rgba(108,92,231,0.2)" : "transparent", color: view === v.id ? "#a78bfa" : "#64748b", cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: 600, transition: "all 0.2s", whiteSpace: "nowrap" }}>{v.label}</button>
           ))}
         </div>
       </div>
-
       {showCategoryTabs && (
         <div style={{ display: "flex", overflowX: "auto", gap: 6, padding: isMobile ? "14px 12px 0" : "18px 24px 0", scrollbarWidth: "none" }}>
-          {CATEGORIES.map(c => (
-            <button key={c.id} onClick={() => setActiveCategory(c.id)} style={{
-              flexShrink: 0, padding: isMobile ? "8px 12px" : "9px 16px", borderRadius: 10, border: "1px solid",
-              borderColor: activeCategory === c.id ? "#6C5CE7" : "#2d2d4e",
-              background: activeCategory === c.id ? "rgba(108,92,231,0.15)" : "rgba(255,255,255,0.03)",
-              color: activeCategory === c.id ? "#a78bfa" : "#64748b",
-              cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: 600, whiteSpace: "nowrap", transition: "all 0.2s",
-            }}>{isMobile ? c.shortLabel : c.label}</button>
+          {categories.map(c => (
+            <button key={c.id} onClick={() => setActiveCategory(c.id)} style={{ flexShrink: 0, padding: isMobile ? "8px 12px" : "9px 16px", borderRadius: 10, border: "1px solid", borderColor: activeCategory === c.id ? "#6C5CE7" : "#2d2d4e", background: activeCategory === c.id ? "rgba(108,92,231,0.15)" : "rgba(255,255,255,0.03)", color: activeCategory === c.id ? "#a78bfa" : "#64748b", cursor: "pointer", fontSize: isMobile ? 12 : 13, fontWeight: 600, whiteSpace: "nowrap", transition: "all 0.2s" }}>{isMobile ? c.shortLabel : c.label}</button>
           ))}
         </div>
       )}
-      {showCategoryTabs && (
+      {showCategoryTabs && cat && (
         <div style={{ padding: isMobile ? "10px 12px 0" : "12px 24px 0", maxWidth: 700 }}>
           <p style={{ color: "#475569", fontSize: 12, margin: 0, lineHeight: 1.6 }}>{cat.description}</p>
         </div>
       )}
-
-      {view === "quiz"       && !quizResults && <QuizView onComplete={handleQuizComplete} isMobile={isMobile} />}
+      {view === "quiz"       && !quizResults && <QuizView onComplete={handleQuizComplete} isMobile={isMobile} tools={tools} />}
       {view === "quiz"       && quizResults  && <QuizResult results={quizResults} onRetake={() => setQuizResults(null)} onGoToTool={handleGoToTool} isMobile={isMobile} />}
-      {view === "ranked"     && <RankedView activeCategory={activeCategory} isMobile={isMobile} />}
-      {view === "compare"    && <CompareView isMobile={isMobile} />}
-      {view === "matrix"     && <MatrixView isMobile={isMobile} />}
-      {view === "radar"      && <RadarView selectedTools={selectedTools} onToggleTool={toggleTool} isMobile={isMobile} />}
-      {view === "benchmarks" && <BenchmarksView selectedTools={selectedTools} onToggleTool={toggleTool} isMobile={isMobile} />}
-
+      {view === "ranked"     && <RankedView activeCategory={activeCategory} isMobile={isMobile} tools={tools} />}
+      {view === "compare"    && <CompareView isMobile={isMobile} tools={tools} categories={categories} />}
+      {view === "matrix"     && <MatrixView isMobile={isMobile} tools={tools} categories={categories} />}
+      {view === "radar"      && <RadarView selectedTools={selectedTools} onToggleTool={toggleTool} isMobile={isMobile} tools={tools} categories={categories} />}
+      {view === "benchmarks" && <BenchmarksView selectedTools={selectedTools} onToggleTool={toggleTool} isMobile={isMobile} tools={tools} />}
       <div style={{ textAlign: "center", padding: "32px 16px 0", color: "#2d2d4e", fontSize: 11 }}>
         Editorial scores · March 2026 · Benchmark data from public model cards
       </div>
