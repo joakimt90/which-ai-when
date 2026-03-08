@@ -8,8 +8,8 @@ import {
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler,
   ChartTooltip, Legend, CategoryScale, LinearScale, BarElement);
 
-const SUPABASE_URL = "https://czxhavedloklkyqhjvpz.supabase.co";
-const SUPABASE_KEY = "sb_publishable_AxknLEzD-VAetyqpzIU0TQ_zVL-QKmm";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "https://czxhavedloklkyqhjvpz.supabase.co";
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY ?? "sb_publishable_AxknLEzD-VAetyqpzIU0TQ_zVL-QKmm";
 
 async function fetchFromSupabase(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
