@@ -347,16 +347,16 @@ function MatrixTooltip({ catId, children }) {
   );
 }
 
-function MatrixView({ isMobile, tools, categories }) {
+function MatrixView({ isMobile, isTablet, tools, categories }) {
   const [activeCell, setActiveCell] = useState(null);
+  const [expandedTool, setExpandedTool] = useState(null);
   const handleCellClick = (toolId, catId, e) => {
     e.stopPropagation();
     const key = `${toolId}-${catId}`;
     setActiveCell(prev => prev === key ? null : key);
   };
-  // Mobile: stacked expandable cards (unchanged)
+  // Mobile: stacked expandable cards
   if (isMobile) {
-    const [expandedTool, setExpandedTool] = useState(null);
     return (
       <div style={{ padding: "16px 12px 0" }}>
         {tools.map(tool => (
@@ -391,9 +391,9 @@ function MatrixView({ isMobile, tools, categories }) {
     );
   }
 
-  // Desktop: full grid
-  const toolColWidth = 180;
-  const catColWidth  = 130;
+  // Desktop/tablet: full grid
+  const toolColWidth = isTablet ? 140 : 180;
+  const catColWidth  = isTablet ? 110 : 130;
   const minWidth     = toolColWidth + categories.length * catColWidth;
 
   function scoreColor(score) {
@@ -770,7 +770,7 @@ export default function AIGuide() {
       {view === "quiz"       && quizResults  && <QuizResult results={quizResults} onRetake={() => setQuizResults(null)} onGoToTool={handleGoToTool} isMobile={isMobile} />}
       {view === "ranked"     && <RankedView activeCategory={activeCategory} isMobile={isMobile} tools={tools} />}
       {view === "compare"    && <CompareView isMobile={isMobile} tools={tools} categories={categories} />}
-      {view === "matrix"     && <MatrixView isMobile={isMobile} tools={tools} categories={categories} />}
+      {view === "matrix"     && <MatrixView isMobile={isMobile} isTablet={isTablet} tools={tools} categories={categories} />}
       {view === "radar"      && <RadarView selectedTools={selectedTools} onToggleTool={toggleTool} isMobile={isMobile} tools={tools} categories={categories} />}
       {view === "benchmarks" && <BenchmarksView selectedTools={selectedTools} onToggleTool={toggleTool} isMobile={isMobile} tools={tools} />}
         <footer style={{ marginTop: 40, padding: "32px 24px", borderTop: `1px solid ${THEME.border}`, textAlign: "center", display: "flex", flexDirection: "column", gap: 8 }}>
